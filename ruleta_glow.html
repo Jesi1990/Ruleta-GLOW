@@ -1,0 +1,298 @@
+
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Jugá con GLOW — Ruleta</title>
+<style>
+  :root{
+    --bg:#fff6ff;
+    --accent1:#ff69b4; /* rosa */
+    --accent2:#8a2be2; /* violeta */
+    --text:#2b2b2b;
+  }
+  body{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:linear-gradient(180deg,var(--bg),#f7ecff); color:var(--text); margin:0; padding:20px; display:flex; justify-content:center;}
+  .container{max-width:900px; width:100%;}
+  header{display:flex; align-items:center; gap:16px; margin-bottom:18px;}
+  .brand{display:flex; flex-direction:column;}
+  h1{margin:0; font-size:20px; color:var(--accent2);}
+  p.lead{margin:4px 0 0; font-size:14px; color:#555;}
+  .game{display:grid; grid-template-columns: 1fr 320px; gap:20px; align-items:start;}
+  .wheel-wrap{background:linear-gradient(180deg,#fff 0%,#fff0ff 100%); padding:18px; border-radius:12px; box-shadow:0 6px 18px rgba(120,60,120,0.08);}
+  canvas#wheel{width:100%; height:auto; border-radius:8px; display:block;}
+  .controls{display:flex; gap:8px; margin-top:12px; align-items:center;}
+  button.spin{background:linear-gradient(90deg,var(--accent1),var(--accent2)); color:white; border:none; padding:12px 18px; border-radius:999px; font-weight:700; cursor:pointer; box-shadow:0 6px 12px rgba(138,43,226,0.18);}
+  button.small{background:#fff; border:1px solid #eee; padding:8px 10px; border-radius:8px; cursor:pointer;}
+  .side{background:#fff; padding:16px; border-radius:12px; box-shadow:0 6px 18px rgba(120,60,120,0.06);}
+  .result{margin-top:12px; font-weight:700; font-size:16px; text-align:center;}
+  .msg{margin-top:6px; font-size:14px; color:#444; text-align:center;}
+  .qr-tools{margin-top:14px;}
+  label{font-size:13px; color:#444;}
+  input[type=text]{width:100%; padding:10px; border-radius:8px; border:1px solid #eee; margin-top:6px;}
+  .footer-note{margin-top:10px; font-size:13px; color:#666;}
+  @media(max-width:880px){
+    .game{grid-template-columns:1fr;}
+    .side{order:2;}
+  }
+  /* marker triangle */
+  .marker{position:absolute; left:50%; transform:translateX(-50%); margin-top:-10px; width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:18px solid #fff;}
+  .wheel-area{position:relative; padding-top:14px;}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="brand">
+      <h1>Jugá con GLOW</h1>
+      <p class="lead">Girá la ruleta y ganá un premio. Mensaje final: "Retirá hoy mismo tu premio."</p>
+    </div>
+  </header>
+
+  <section class="game">
+    <div class="wheel-wrap">
+      <div class="wheel-area">
+        <div class="marker" aria-hidden="true"></div>
+        <canvas id="wheel" width="600" height="600"></canvas>
+      </div>
+
+      <div class="controls">
+        <button class="spin" id="spinBtn">GIRAR</button>
+        <button class="small" id="resetBtn">Reiniciar</button>
+        <div style="margin-left:auto; text-align:right;">
+          <div id="lastResult" class="result">Listo para girar 🎡</div>
+          <div class="msg">Premio: <span id="prizeText">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="side">
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div style="width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent1),var(--accent2));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:18px;">G</div>
+        <div>
+          <strong>Ruleta de descuentos</strong>
+          <div style="font-size:13px;color:#666;">Muestra este premio en el local.</div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <strong>Casillas</strong>
+        <ul id="segmentsList" style="padding-left:18px;margin-top:6px;color:#444;">
+          <!-- llenado por JS -->
+        </ul>
+      </div>
+
+      <div class="qr-tools">
+        <label for="hostUrl">URL pública donde subirás este archivo (ej. https://tusitio.com/ruleta.html)</label>
+        <input type="text" id="hostUrl" placeholder="Pega aquí la URL pública donde alojes la ruleta">
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button class="small" id="genQr">Generar QR imprimible</button>
+          <button class="small" id="downloadHtml">Descargar HTML</button>
+        </div>
+        <div id="qrcode" style="margin-top:12px;"></div>
+        <div class="footer-note">Si aún no subiste el archivo, podés descargarlo y alojarlo gratis en GitHub Pages o Netlify. Luego pegá la URL arriba y generá el QR.</div>
+      </div>
+    </aside>
+  </section>
+
+  <div style="margin-top:18px; font-size:13px; color:#444;">
+    <strong>Instrucciones rápidas:</strong>
+    <ol>
+      <li>Descargá el archivo HTML (botón "Descargar HTML").</li>
+      <li>Subilo a un hosting público (GitHub Pages o Netlify funcionan gratis).</li>
+      <li>Pegá la URL pública en "URL pública..." y presioná "Generar QR".</li>
+      <li>Imprimí el QR y listo: al escanear, abrirá la ruleta en el celular.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- Modal / result simple -->
+<div id="modal" style="display:none; position:fixed; inset:0; align-items:center; justify-content:center; background:rgba(0,0,0,0.4);">
+  <div style="background:#fff; padding:18px; border-radius:12px; width:320px; text-align:center;">
+    <h3 id="modalTitle">¡Felicidades!</h3>
+    <p id="modalPrize" style="font-weight:700; font-size:18px; margin-top:6px;">10% descuento</p>
+    <p style="margin-top:8px; color:#555;">Retirá hoy mismo tu premio.</p>
+    <button id="closeModal" style="margin-top:10px; padding:10px 12px; border-radius:8px; border:none; background:var(--accent2); color:white; cursor:pointer;">Cerrar</button>
+  </div>
+</div>
+
+<script>
+/* ======= Configuración: premios y colores (modificá si querés) ======= */
+const config = {
+  title: "Jugá con GLOW",
+  messageAfter: "Retirá hoy mismo tu premio.",
+  segments: [
+    {label: "10% descuento"},
+    {label: "Accesorio sorpresa"},
+    {label: "Reintentar"},
+    {label: "Más"}
+  ],
+  colors: ["#ffb6d9","#e29bff","#ff8fc3","#d19bff"] // rosa / violeta tonos
+};
+/* ==================================================================== */
+
+const canvas = document.getElementById("wheel");
+const ctx = canvas.getContext("2d");
+const size = Math.min(canvas.width, canvas.height);
+const cx = canvas.width/2;
+const cy = canvas.height/2;
+const radius = size/2 - 20;
+let startAngle = 0;
+let isSpinning = false;
+let currentRotation = 0;
+const spinBtn = document.getElementById("spinBtn");
+const lastResult = document.getElementById("lastResult");
+const prizeText = document.getElementById("prizeText");
+const segmentsList = document.getElementById("segmentsList");
+
+function drawWheel(){
+  const segCount = config.segments.length;
+  const arc = (2*Math.PI)/segCount;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.save();
+  ctx.translate(cx,cy);
+  ctx.rotate(startAngle);
+  for(let i=0;i<segCount;i++){
+    const start = i*arc;
+    // color
+    ctx.beginPath();
+    ctx.moveTo(0,0);
+    ctx.arc(0,0,radius,start,start+arc);
+    ctx.closePath();
+    ctx.fillStyle = config.colors[i % config.colors.length];
+    ctx.fill();
+    // text
+    ctx.save();
+    ctx.rotate(start + arc/2);
+    ctx.fillStyle = "#222";
+    ctx.font = "bold 18px sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(config.segments[i].label, radius - 18, 6);
+    ctx.restore();
+  }
+  // center circle
+  ctx.beginPath();
+  ctx.fillStyle = "#fff";
+  ctx.arc(0,0,60,0,2*Math.PI);
+  ctx.fill();
+  ctx.restore();
+}
+drawWheel();
+function populateList(){
+  segmentsList.innerHTML = "";
+  config.segments.forEach(s=>{
+    const li = document.createElement("li");
+    li.textContent = s.label;
+    segmentsList.appendChild(li);
+  });
+}
+populateList();
+
+function spinToSegment(index){
+  if(isSpinning) return;
+  const segCount = config.segments.length;
+  const arc = 360/segCount;
+  // compute target rotation so that chosen segment lands at top (marker)
+  const randomSpins = 4; // aantal volle rotaties
+  const target = 360*randomSpins + (360 - (index*arc) - arc/2);
+  animateSpin(target);
+}
+
+function animateSpin(targetDeg){
+  isSpinning = true;
+  spinBtn.disabled = true;
+  const duration = 4500; // ms
+  const start = performance.now();
+  const initial = currentRotation % 360;
+  function easeOutCubic(t){return 1-Math.pow(1-t,3);}
+  function frame(now){
+    const t = Math.min(1, (now - start)/duration);
+    const val = initial + (targetDeg - initial)*easeOutCubic(t);
+    currentRotation = val;
+    startAngle = (currentRotation * Math.PI)/180;
+    drawWheel();
+    if(t<1){ requestAnimationFrame(frame); }
+    else{ // finished
+      isSpinning = false;
+      spinBtn.disabled = false;
+      // calculate landed segment
+      const segCount = config.segments.length;
+      const arc = 360/segCount;
+      const landed = Math.floor(((360 - (currentRotation%360)) + arc/2) / arc) % segCount;
+      showResult(landed);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+function showResult(index){
+  const seg = config.segments[index];
+  prizeText.textContent = seg.label;
+  lastResult.textContent = seg.label;
+  // show modal
+  document.getElementById("modalPrize").textContent = seg.label;
+  document.getElementById("modalTitle").textContent = seg.label.includes("Reintentar") ? "¡Intentalo de nuevo!" : "¡Felicidades!";
+  document.getElementById("modal").style.display = "flex";
+  document.getElementById("modal").querySelector("p + p").textContent = config.messageAfter;
+}
+
+/* Spin button random selection but weighted: 
+   We'll pick uniformly among segments except "Reintentar" we let appear same as others.
+*/
+spinBtn.addEventListener("click", ()=>{
+  // simple random index
+  const idx = Math.floor(Math.random()*config.segments.length);
+  spinToSegment(idx);
+});
+
+document.getElementById("resetBtn").addEventListener("click", ()=>{
+  currentRotation = 0;
+  startAngle = 0;
+  drawWheel();
+  lastResult.textContent = "Listo para girar 🎡";
+  prizeText.textContent = "—";
+});
+
+document.getElementById("closeModal").addEventListener("click", ()=>{
+  document.getElementById("modal").style.display = "none";
+});
+
+/* ===== QR code generator: uso de qrcode.js (pequeña librería embebida) ===== */
+/* Codigo qrcode.js (davidshimjs qrcodejs) - versión compacta */
+!function(){function n(a){this._htOption={text:a||"",width:256,height:256,typeNumber:4,colorDark:"#000000",colorLight:"#ffffff",correctLevel:1},this._el=null}function t(a,b){var c=document.createElement("canvas");c.width=a,c.height=b;var d=c.getContext("2d");return d}function e(a,b){var c=t(b.width,b.height),d=c.getContext("2d");d.fillStyle=b.colorLight,d.fillRect(0,0,b.width,b.height);try{var f=document.createElement("img");f.src=a,d.drawImage(f,0,0)}catch(g){}return c.toDataURL("image/png")}n.prototype.makeCode=function(a){this._htOption.text=a||this._htOption.text;var b=this._el||document.getElementById("qrcode");b.innerHTML="";var c=document.createElement("canvas");c.width=this._htOption.width,c.height=this._htOption.height;var d=c.getContext("2d");d.fillStyle=this._htOption.colorLight,d.fillRect(0,0,c.width,c.height); // Dibujar QR simple con librería externa no incluida => fallback: mostrar link como texto y un pequeño placeholder
+var info=document.createElement("div");info.style.fontSize='13px';info.style.color='#444';info.style.padding='8px';info.textContent='Para generar un QR imprimible sin conexión: pega la URL y usá la opción "Generar QR" — si el navegador soporta canvas se intentará generar.';b.appendChild(info); // intentar usar API externa de charts (si hay internet) para generar imagen del QR
+var url = "https://chart.googleapis.com/chart?cht=qr&chs="+this._htOption.width+"x"+this._htOption.height+"&chl="+encodeURIComponent(this._htOption.text);
+var img=document.createElement("img"); img.src=url; img.alt='QR'; img.style.maxWidth='100%'; img.style.marginTop='8px'; b.appendChild(img);
+};
+window.SimpleQRCode=n;}();
+
+/* Uso: generador de QR al pegar URL */
+const q = new window.SimpleQRCode();
+document.getElementById("genQr").addEventListener("click", ()=>{
+  const url = document.getElementById("hostUrl").value.trim();
+  if(!url){ alert("Pega la URL pública donde alojaste la ruleta."); return; }
+  q._htOption.text = url;
+  q._htOption.width = 240;
+  q._htOption.height = 240;
+  q._el = document.getElementById("qrcode");
+  q.makeCode(url);
+});
+
+/* Descargar HTML (simple): genera un blob con el contenido actual del documento para guardar */
+document.getElementById("downloadHtml").addEventListener("click", ()=>{
+  // reconstruir HTML con los mismos datos pero sin la interfaz de desarrollo del QR (opcional)
+  const doctype = "<!doctype html>";
+  const full = doctype + "\\n" + document.documentElement.outerHTML;
+  const blob = new Blob([full],{type:"text/html;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "ruleta_glow.html";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>
